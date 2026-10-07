@@ -72,22 +72,38 @@ export default function KeysClient({ baseUrl }: { baseUrl: string }) {
     load();
   }
 
-  if (loading) return <div className="text-sm text-zinc-500">Loading API keys…</div>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-white/[0.05]" />
+        <div className="card h-64 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-1 text-2xl font-bold">API Keys</h1>
-      <p className="mb-6 text-sm text-zinc-500">
-        Keys clients send as <code className="inline">Authorization: Bearer &lt;key&gt;</code> to use{" "}
-        <code className="inline">{baseUrl}/api/v1</code>.
-        {db ? " Stored in Supabase." : " Database not configured — using ROUTER_API_KEY from env (read-only)."}
-      </p>
+      <div className="anim-fade-up mb-8">
+        <h1 className="section-title">API Keys</h1>
+        <p className="section-sub">
+          Keys clients send as <code className="inline">Authorization: Bearer &lt;key&gt;</code> to use{" "}
+          <code className="inline">{baseUrl}/api/v1</code>.
+          {db ? (
+            <span className="pill pill-green ml-2">Supabase</span>
+          ) : (
+            <span className="pill pill-zinc ml-2">env fallback</span>
+          )}
+        </p>
+      </div>
 
       {newKey && (
-        <div className="card mb-6 border-emerald-800">
-          <div className="mb-2 font-semibold text-emerald-300">New key created — copy it now, it won't be shown again:</div>
+        <div className="card anim-fade-up mb-6 !border-emerald-500/30 !bg-emerald-500/[0.04]">
+          <div className="mb-3 flex items-center gap-2 font-semibold text-emerald-300">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-xs">✓</span>
+            Key created — copy it now, it won't be shown again
+          </div>
           <div className="flex items-center gap-3">
-            <code className="flex-1 break-all rounded bg-black px-3 py-2 font-mono text-sm text-emerald-300">
+            <code className="flex-1 break-all rounded-xl border border-emerald-500/20 bg-black/60 px-4 py-3 font-mono text-sm text-emerald-300">
               {newKey.key}
             </code>
             <CopyButton text={newKey.key} />
@@ -96,11 +112,11 @@ export default function KeysClient({ baseUrl }: { baseUrl: string }) {
       )}
 
       {error && (
-        <div className="card mb-6 border-red-900 text-sm text-red-300">{error}</div>
+        <div className="card anim-fade-in mb-6 !border-red-500/25 text-sm text-red-300">{error}</div>
       )}
 
       {db && (
-        <div className="card mb-6">
+        <div className="card anim-fade-up mb-6">
           <div className="label">Create new API key</div>
           <div className="flex gap-2">
             <input
@@ -114,52 +130,59 @@ export default function KeysClient({ baseUrl }: { baseUrl: string }) {
               {creating ? "Creating…" : "+ Create"}
             </button>
           </div>
+          <p className="mt-2 text-[11px] text-zinc-600">Give each client its own key so you can revoke them individually.</p>
         </div>
       )}
 
-      <div className="card overflow-x-auto p-0">
-        <table className="w-full text-left text-sm">
+      <div className="table-wrap anim-fade-up">
+        <table>
           <thead>
-            <tr className="border-b border-zinc-800 text-xs uppercase text-zinc-500">
-              <th className="px-4 py-3">Label</th>
-              <th className="px-4 py-3">Key</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3"></th>
+            <tr>
+              <th>Label</th>
+              <th>Key</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {keys.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
-                  No API keys yet. {db ? "Create one above to let clients connect." : "Set ROUTER_API_KEY in env, or connect Supabase."}
+                <td colSpan={5} className="px-4 py-12 text-center">
+                  <div className="mb-2 text-3xl">🔑</div>
+                  <div className="text-zinc-400">No API keys yet</div>
+                  <div className="mt-1 text-sm text-zinc-600">
+                    {db ? "Create one above to let clients connect." : "Set ROUTER_API_KEY in env, or connect Supabase."}
+                  </div>
                 </td>
               </tr>
             )}
             {keys.map((k) => (
-              <tr key={k.id} className="border-b border-zinc-800/50 last:border-0">
-                <td className="px-4 py-2 font-medium">{k.name}</td>
-                <td className="px-4 py-2 font-mono text-xs text-zinc-400">{k.keyMasked}</td>
-                <td className="px-4 py-2">
+              <tr key={k.id}>
+                <td className="font-medium text-zinc-200">{k.name}</td>
+                <td className="font-mono text-xs text-zinc-500">{k.keyMasked}</td>
+                <td>
                   {k.enabled ? (
-                    <span className="text-emerald-400">● active</span>
+                    <span className="pill pill-green">● active</span>
                   ) : (
-                    <span className="text-zinc-500">○ disabled</span>
+                    <span className="pill pill-zinc">○ disabled</span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-xs text-zinc-500">
-                  {k.createdAt ? new Date(k.createdAt).toLocaleDateString() : "—"}
+                <td className="text-xs text-zinc-500">
+                  {k.createdAt ? new Date(k.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—"}
                 </td>
-                <td className="px-4 py-2 text-right">
-                  {db && k.id !== "env" && (
-                    <>
-                      <button onClick={() => toggle(k)} className="mr-2 text-xs text-zinc-400 underline">
+                <td className="text-right">
+                  {db && k.id !== "env" ? (
+                    <div className="flex justify-end gap-3 text-xs">
+                      <button onClick={() => toggle(k)} className="text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline">
                         {k.enabled ? "disable" : "enable"}
                       </button>
-                      <button onClick={() => remove(k)} className="text-xs text-red-400 underline">
+                      <button onClick={() => remove(k)} className="text-red-400/80 underline-offset-2 hover:text-red-300 hover:underline">
                         revoke
                       </button>
-                    </>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-zinc-700">env-managed</span>
                   )}
                 </td>
               </tr>
@@ -168,18 +191,18 @@ export default function KeysClient({ baseUrl }: { baseUrl: string }) {
         </table>
       </div>
 
-      <div className="card mt-6">
-        <div className="label">Base URL</div>
-        <div className="flex items-center gap-3">
-          <code className="flex-1 rounded bg-black px-3 py-2 font-mono text-sm text-emerald-300">
-            {baseUrl}/api/v1
-          </code>
-          <CopyButton text={`${baseUrl}/api/v1`} />
+      <div className="card anim-fade-up mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="label !mb-0">Base URL</div>
+          <CopyButton text={`${baseUrl}/api/v1`} label="Copy URL" />
         </div>
-        <div className="label mt-4">Quick test (curl)</div>
-        <pre className="code">{`curl ${baseUrl}/api/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+        <code className="block rounded-xl border border-white/[0.08] bg-black/60 px-4 py-3 font-mono text-sm text-emerald-300">
+          {baseUrl}/api/v1
+        </code>
+        <div className="label mt-5">Quick test</div>
+        <pre className="code">{`curl ${baseUrl}/api/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}'`}</pre>
       </div>
     </div>
