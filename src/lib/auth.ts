@@ -1,19 +1,29 @@
 import { cookies } from "next/headers";
-import { getRouterApiKey } from "./config";
+import { findApiKey, listApiKeys } from "./store";
 
 export const SESSION_COOKIE = "nimi-session";
 
-/** Check `Authorization: Bearer <ROUTER_API_KEY>` for /api/v1/*. */
-export function checkApiKey(req: Request): boolean {
-  const required = getRouterApiKey();
-  if (!required) return true; // open access when no key configured
+/** Single dashboard password from env (PASSWORD, or legacy DASHBOARD_PASSWORD). */
+export function getDashboardPassword(): string | null {
+  return process.env.PASSWORD || process.env.DASHBOARD_PASSWORD || null;
+}
+
+/**
+ * Client API key check for /api/v1/*.
+ * Keys are managed in the dashboard (DB) with env ROUTER_API_KEY as fallback.
+ * Open access only when no keys are configured anywhere.
+ */
+export async function checkApiKey(req: Request): Promise<boolean> {
   const auth = req.headers.get("authorization") || "";
-  // constant-time-ish compare to avoid trivial timing leaks
-  const expected = `Bearer ${required}`;
-  if (auth.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < auth.length; i++) diff |= auth.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
+  const key = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+
+  if (key) {
+    const rec = await findApiKey(key).catch(() => null);
+    return !!(rec && rec.enabled);
+  }
+
+  const keys = await listApiKeys().catch(() => []);
+  return keys.filter((k) => k.enabled).length === 0;
 }
 
 export function unauthorized() {
@@ -23,9 +33,9 @@ export function unauthorized() {
   );
 }
 
-/** Dashboard session check (set after DASHBOARD_PASSWORD login). */
+/** Dashboard session check (set after PASSWORD login). */
 export async function hasDashboardSession(): Promise<boolean> {
-  if (!process.env.DASHBOARD_PASSWORD) return true;
+  if (!getDashboardPassword()) return true;
   const jar = await cookies();
   return jar.get(SESSION_COOKIE)?.value === "ok";
 }

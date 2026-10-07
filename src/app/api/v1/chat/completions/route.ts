@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  if (!checkApiKey(req)) return unauthorized();
+  if (!(await checkApiKey(req))) return unauthorized();
   let body: Record<string, unknown>;
   try {
     body = await req.json();

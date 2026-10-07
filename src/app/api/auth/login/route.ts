@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { SESSION_COOKIE, getDashboardPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export async function POST(req: Request) {
-  const expected = process.env.DASHBOARD_PASSWORD;
+  const expected = getDashboardPassword();
   if (!expected) return NextResponse.json({ ok: true }); // no password configured
 
   let password = "";

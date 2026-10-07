@@ -23,6 +23,19 @@ export function cooldownKey(provider: string, key: string, ms: number): void {
   cooldownUntil.set(ck(provider, key), Date.now() + ms);
 }
 
+/** Snapshot of currently-cooling keys (for the dashboard). */
+export function coolingSnapshot(): { provider: string; key: string; msLeft: number }[] {
+  const now = Date.now();
+  const out: { provider: string; key: string; msLeft: number }[] = [];
+  for (const [k, until] of cooldownUntil) {
+    if (until > now) {
+      const sep = k.indexOf("::");
+      out.push({ provider: k.slice(0, sep), key: k.slice(sep + 2), msLeft: until - now });
+    }
+  }
+  return out;
+}
+
 /**
  * Keys in round-robin order, skipping keys on cooldown.
  * If every key is cooling, returns them all anyway (best effort).

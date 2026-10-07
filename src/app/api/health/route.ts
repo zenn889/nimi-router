@@ -1,14 +1,14 @@
-import { getProviders, getRouterApiKey } from "@/lib/config";
+import { listProviders, isDbConfigured } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const providers = getProviders();
+  const providers = await listProviders().catch(() => []);
   return Response.json({
     ok: true,
     service: "nimi-router",
     providers: providers.length,
-    authRequired: getRouterApiKey() !== null,
+    db: isDbConfigured(),
     time: new Date().toISOString(),
   });
 }

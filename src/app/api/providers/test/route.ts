@@ -1,5 +1,5 @@
 import { dashboardForbidden, hasDashboardSession } from "@/lib/auth";
-import { getProviders } from "@/lib/config";
+import { listProviders } from "@/lib/store";
 import { maskSecret } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   } catch {
     /* ignore */
   }
-  const providers = getProviders();
+  const providers = await listProviders().catch(() => []);
   const p = providers[index];
   if (!p) return Response.json({ ok: false, error: "Unknown provider." }, { status: 400 });
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getProviders, maskSecret } from "@/lib/config";
+import { listProviders } from "@/lib/store";
+import { maskSecret } from "@/lib/config";
 import { fetchStats, fmt, type StatsView } from "@/lib/dash";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 export default async function OverviewPage() {
   const stats: StatsView | null = await fetchStats();
-  const providers = getProviders();
+  const providers = await listProviders().catch(() => []);
 
   return (
     <div className="mx-auto max-w-6xl">

@@ -1,8 +1,10 @@
 // Core routing engine: OpenAI-compatible proxy with smart fallback.
 // Provider chain (priority) -> key rotation (round-robin) with auto-cooldown.
 // Token usage is captured for both streaming and non-streaming responses.
+// Request logs go to in-memory stats AND to Supabase (when configured).
 
-import { providersForModel, maskSecret, type ProviderConfig } from "./config";
+import { maskSecret } from "./config";
+import { listProviders, persistLog, type ProviderRecord, type LogEntry } from "./store";
 import { orderedKeys, cooldownKey } from "./keypool";
 import { recordRequest, addTokens, type TokenUsage } from "./stats";
 
@@ -42,17 +44,29 @@ async function extractUsage(res: Response): Promise<TokenUsage | null> {
 }
 
 /**
- * Wrap an SSE stream so token usage is captured as it flows through.
- * Expects the provider to send `usage` in a final data chunk
- * (OpenAI does when `stream_options: {include_usage: true}`).
+ * Wrap an SSE stream so token usage is captured as it flows through,
+ * and `onDone` fires when the stream closes (for final DB logging).
  */
 function wrapStreamForUsage(
   body: ReadableStream<Uint8Array>,
-  onUsage: (u: TokenUsage) => void
+  onUsage: (u: TokenUsage) => void,
+  onDone: () => void
 ): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   let buf = "";
   let reported = false;
+  let done = false;
+
+  function finish() {
+    if (!done) {
+      done = true;
+      try {
+        onDone();
+      } catch {
+        /* never break the stream */
+      }
+    }
+  }
 
   function scan(text: string) {
     for (const line of text.split("\n")) {
@@ -81,13 +95,45 @@ function wrapStreamForUsage(
         buf = lines.pop() ?? "";
         scan(lines.join("\n"));
       },
-      flush(controller) {
-        void controller;
+      flush() {
         if (buf.trim()) scan(buf);
         buf = "";
+        finish();
       },
     })
   );
+}
+
+interface AttemptCtx {
+  time: string;
+  model: string;
+  provider: string;
+  key: string;
+  keyMasked: string;
+}
+
+/** Log to both in-memory stats and Supabase (when configured). */
+async function logAttempt(
+  ctx: AttemptCtx,
+  success: boolean,
+  latencyMs: number,
+  usage: TokenUsage | null,
+  error?: string
+): Promise<void> {
+  const entry: LogEntry = {
+    time: ctx.time,
+    model: ctx.model,
+    provider: ctx.provider,
+    keyMasked: ctx.keyMasked,
+    success,
+    latencyMs,
+    promptTokens: usage?.prompt_tokens ?? 0,
+    completionTokens: usage?.completion_tokens ?? 0,
+    totalTokens: usage?.total_tokens ?? 0,
+    error,
+  };
+  recordRequest({ ...entry, key: ctx.key });
+  await persistLog(entry);
 }
 
 /**
@@ -98,10 +144,13 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
   const model = String(body.model || "");
   if (!model) return errJson("Missing 'model' in request body.", 400);
 
-  const chain = providersForModel(model);
+  const all = await listProviders().catch(() => [] as ProviderRecord[]);
+  const chain = all.filter(
+    (p) => p.enabled && p.apiKeys.length > 0 && (p.models.includes("*") || p.models.includes(model))
+  );
   if (chain.length === 0) {
     return errJson(
-      `No enabled provider configured for model "${model}". Check PROVIDERS_JSON.`,
+      `No enabled provider configured for model "${model}". Add one in the dashboard or via PROVIDERS_JSON.`,
       404
     );
   }
@@ -119,13 +168,12 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
   for (const p of chain) {
     for (const key of orderedKeys(p.name, p.apiKeys)) {
       const started = Date.now();
-      const keyMasked = maskSecret(key);
-      const baseLog = {
+      const ctx: AttemptCtx = {
         time: new Date().toISOString(),
         model,
         provider: p.name,
         key,
-        keyMasked,
+        keyMasked: maskSecret(key),
       };
 
       let upstream: Response;
@@ -141,8 +189,8 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
       } catch (e) {
         const latencyMs = Date.now() - started;
         const msg = e instanceof Error ? e.message : String(e);
-        failures.push(`${p.name}/${keyMasked}: ${msg.slice(0, 100)}`);
-        recordRequest({ ...baseLog, success: false, latencyMs, promptTokens: 0, completionTokens: 0, totalTokens: 0, error: "network error" });
+        failures.push(`${p.name}/${ctx.keyMasked}: ${msg.slice(0, 100)}`);
+        await logAttempt(ctx, false, latencyMs, null, "network error");
         continue; // next key
       }
 
@@ -151,8 +199,33 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
       if (!isRetryable(upstream.status)) {
         // Definitive answer — pass through, capturing usage.
         if (wantsStream && upstream.ok && upstream.body) {
-          recordRequest({ ...baseLog, success: true, latencyMs, promptTokens: 0, completionTokens: 0, totalTokens: 0 });
-          const wrapped = wrapStreamForUsage(upstream.body, (u) => addTokens(p.name, key, u));
+          // In-memory log now (live view); DB log once when the stream closes.
+          recordRequest({
+            time: ctx.time, model, provider: p.name, key, keyMasked: ctx.keyMasked,
+            success: true, latencyMs, promptTokens: 0, completionTokens: 0, totalTokens: 0,
+          });
+          let usage: TokenUsage | null = null;
+          const wrapped = wrapStreamForUsage(
+            upstream.body,
+            (u) => {
+              usage = u;
+              addTokens(p.name, key, u);
+            },
+            () => {
+              // Single DB log with final token counts.
+              persistLog({
+                time: ctx.time,
+                model,
+                provider: p.name,
+                keyMasked: ctx.keyMasked,
+                success: true,
+                latencyMs,
+                promptTokens: usage?.prompt_tokens ?? 0,
+                completionTokens: usage?.completion_tokens ?? 0,
+                totalTokens: usage?.total_tokens ?? 0,
+              });
+            }
+          );
           return new Response(wrapped, {
             status: upstream.status,
             statusText: upstream.statusText,
@@ -160,23 +233,15 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
           });
         }
         const usage = upstream.ok ? await extractUsage(upstream) : null;
-        recordRequest({
-          ...baseLog,
-          success: upstream.ok,
-          latencyMs,
-          promptTokens: usage?.prompt_tokens ?? 0,
-          completionTokens: usage?.completion_tokens ?? 0,
-          totalTokens: usage?.total_tokens ?? 0,
-          error: upstream.ok ? undefined : `upstream ${upstream.status}`,
-        });
+        await logAttempt(ctx, upstream.ok, latencyMs, usage, upstream.ok ? undefined : `upstream ${upstream.status}`);
         return upstream;
       }
 
       // Retryable failure — cool this key down, try the next key/provider.
       const text = await upstream.text().catch(() => "");
       const errMsg = `HTTP ${upstream.status}`;
-      failures.push(`${p.name}/${keyMasked}: ${errMsg}${text ? ` — ${text.slice(0, 80)}` : ""}`);
-      recordRequest({ ...baseLog, success: false, latencyMs, promptTokens: 0, completionTokens: 0, totalTokens: 0, error: errMsg });
+      failures.push(`${p.name}/${ctx.keyMasked}: ${errMsg}${text ? ` — ${text.slice(0, 80)}` : ""}`);
+      await logAttempt(ctx, false, latencyMs, null, errMsg);
 
       if (upstream.status === 429) cooldownKey(p.name, key, 60_000);
       else if (upstream.status === 401 || upstream.status === 403) cooldownKey(p.name, key, 5 * 60_000);
@@ -190,4 +255,4 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
   );
 }
 
-export type { ProviderConfig };
+export type { ProviderRecord };

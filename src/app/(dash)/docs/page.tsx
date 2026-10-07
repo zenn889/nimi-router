@@ -28,7 +28,8 @@ export default function DocsPage() {
       <section className="card mb-6">
         <h2 className="mb-2 text-lg font-semibold">1. Environment variables</h2>
         <p className="mb-3 text-sm text-zinc-400">
-          All configuration is via env vars — no database needed. On Vercel, set them under
+          Only <b>one password</b> is required. Providers and client API keys are managed
+          right in this dashboard when a database is connected. On Vercel, set variables under
           Project → Settings → Environment Variables.
         </p>
         <table className="mb-4 w-full text-left text-sm">
@@ -40,31 +41,41 @@ export default function DocsPage() {
           </thead>
           <tbody className="text-zinc-300">
             <tr className="border-b border-zinc-800/50">
-              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">PROVIDERS_JSON</td>
-              <td className="py-2 text-xs">JSON array of providers (required). Format below.</td>
+              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">PASSWORD</td>
+              <td className="py-2 text-xs">Dashboard login password (required). Also accepts DASHBOARD_PASSWORD.</td>
             </tr>
             <tr className="border-b border-zinc-800/50">
-              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">ROUTER_API_KEY</td>
-              <td className="py-2 text-xs">Key clients send as Bearer token. Empty = open access.</td>
+              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">SUPABASE_URL</td>
+              <td className="py-2 text-xs">Supabase project URL — enables DB storage (recommended).</td>
+            </tr>
+            <tr className="border-b border-zinc-800/50">
+              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">SUPABASE_SERVICE_KEY</td>
+              <td className="py-2 text-xs">Supabase <b>service_role</b> key (server-side only, never expose).</td>
+            </tr>
+            <tr className="border-b border-zinc-800/50">
+              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">PROVIDERS_JSON</td>
+              <td className="py-2 text-xs">Optional: seed providers without a DB, or import into DB from the Providers page.</td>
             </tr>
             <tr>
-              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">DASHBOARD_PASSWORD</td>
-              <td className="py-2 text-xs">Password for this dashboard. Empty = no login.</td>
+              <td className="py-2 pr-4 font-mono text-xs text-emerald-300">ROUTER_API_KEY</td>
+              <td className="py-2 text-xs">Optional fallback client key. Prefer creating keys in the dashboard.</td>
             </tr>
           </tbody>
         </table>
+
+        <h3 className="mb-2 font-semibold text-zinc-200">Supabase setup (5 minutes)</h3>
+        <ol className="mb-4 list-decimal space-y-1 pl-5 text-sm text-zinc-300">
+          <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-accent underline">supabase.com</a>.</li>
+          <li>Open <b>SQL Editor</b> → paste the contents of <code className="inline">supabase/schema.sql</code> from this repo → Run.</li>
+          <li>Copy <b>Project URL</b> and <b>service_role key</b> (Project Settings → API) into your env vars.</li>
+          <li>Redeploy. The Providers and API Keys pages become fully manageable from the web.</li>
+        </ol>
+
         <div className="mb-2 flex items-center justify-between">
-          <div className="label mb-0">PROVIDERS_JSON format</div>
+          <div className="label mb-0">PROVIDERS_JSON format (env fallback / import source)</div>
           <CopyButton text={PROVIDERS_EXAMPLE} />
         </div>
         <pre className="code">{PROVIDERS_EXAMPLE}</pre>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-zinc-400">
-          <li><code className="inline">models: ["*"]</code> accepts any model name (passthrough).</li>
-          <li><code className="inline">priority</code>: lower is tried first.</li>
-          <li><code className="inline">apiKeys</code>: multiple keys rotate round-robin; a failing key is cooled down automatically (429 → 60s, 401/403 → 5min). Single <code className="inline">apiKey</code> also works.</li>
-          <li>Token usage (prompt/completion/total) is tracked per key, including streaming.</li>
-          <li>Any OpenAI-compatible endpoint works: OpenAI, OpenRouter, DeepSeek, GLM, Moonshot, Groq, Together, Ollama…</li>
-        </ul>
       </section>
 
       <section className="card mb-6">

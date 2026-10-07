@@ -1,5 +1,5 @@
 import { checkApiKey, unauthorized } from "@/lib/auth";
-import { getProviders } from "@/lib/config";
+import { listProviders } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,10 @@ interface ModelEntry {
 
 /** Aggregate model list across enabled providers (OpenAI /v1/models shape). */
 export async function GET(req: Request) {
-  if (!checkApiKey(req)) return unauthorized();
+  if (!(await checkApiKey(req))) return unauthorized();
 
   const seen = new Map<string, ModelEntry>();
-  const providers = getProviders().filter((p) => p.enabled);
+  const providers = (await listProviders().catch(() => [])).filter((p) => p.enabled);
 
   await Promise.all(
     providers.map(async (p) => {
