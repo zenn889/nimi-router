@@ -16,6 +16,7 @@ function pub(p: ProviderRecord) {
     models: p.models,
     priority: p.priority,
     enabled: p.enabled,
+    disabledKeys: p.disabledKeys ?? [],
   };
 }
 

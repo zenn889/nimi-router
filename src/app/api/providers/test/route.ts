@@ -27,13 +27,16 @@ export async function POST(req: Request) {
         });
         const ms = Date.now() - started;
         if (res.ok) {
-          let count: number | undefined;
+          let data: { data?: { id?: string }[] } | null = null;
           try {
-            count = (await res.json())?.data?.length;
+            data = await res.json();
           } catch {
             /* ignore */
           }
-          return { key: maskSecret(key), ok: true, latencyMs: ms, models: count };
+          const ids = Array.isArray(data?.data)
+            ? data.data.map((m) => String(m?.id || "")).filter(Boolean)
+            : [];
+          return { key: maskSecret(key), ok: true, latencyMs: ms, models: ids.length || undefined, modelIds: ids };
         }
         return { key: maskSecret(key), ok: false, latencyMs: ms, error: `HTTP ${res.status}` };
       } catch (e) {
@@ -47,5 +50,11 @@ export async function POST(req: Request) {
     })
   );
 
-  return Response.json({ results, allOk: results.every((r) => r.ok) });
+  const availableModels = [...new Set(results.flatMap((r) => ("modelIds" in r && Array.isArray(r.modelIds) ? r.modelIds as string[] : [])))];
+
+  return Response.json({
+    results: results.map(({ modelIds, ...r }) => r),
+    allOk: results.every((r) => r.ok),
+    availableModels,
+  });
 }

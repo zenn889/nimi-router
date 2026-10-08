@@ -13,6 +13,8 @@ export interface ProviderRecord {
   models: string[];
   priority: number;
   enabled: boolean;
+  /** Masked keys (via maskSecret) excluded from routing. */
+  disabledKeys: string[];
 }
 
 export interface ApiKeyRecord {
@@ -74,6 +76,7 @@ interface EnvProvider {
   models: string[];
   priority: number;
   enabled: boolean;
+  disabledKeys: string[];
 }
 
 function envProviders(): EnvProvider[] {
@@ -94,6 +97,7 @@ function envProviders(): EnvProvider[] {
           models: Array.isArray(p.models) && p.models.length > 0 ? (p.models as string[]) : ["*"],
           priority: typeof p.priority === "number" ? p.priority : i,
           enabled: p.enabled !== false,
+          disabledKeys: Array.isArray(p.disabledKeys) ? (p.disabledKeys as unknown[]).map(String).filter(Boolean) : [],
         };
       })
       .filter((p) => p.baseUrl && p.apiKeys.length > 0)
@@ -113,6 +117,7 @@ interface DbProvider {
   models: string[];
   priority: number;
   enabled: boolean;
+  disabled_keys: string[];
 }
 
 function toRecord(d: DbProvider): ProviderRecord {
@@ -124,6 +129,7 @@ function toRecord(d: DbProvider): ProviderRecord {
     models: d.models ?? ["*"],
     priority: d.priority ?? 0,
     enabled: d.enabled !== false,
+    disabledKeys: d.disabled_keys ?? [],
   };
 }
 
@@ -136,7 +142,7 @@ export async function listProviders(): Promise<ProviderRecord[]> {
 }
 
 export async function createProvider(p: {
-  name: string; baseUrl: string; apiKeys: string[]; models: string[]; priority: number; enabled: boolean;
+  name: string; baseUrl: string; apiKeys: string[]; models: string[]; priority: number; enabled: boolean; disabledKeys?: string[];
 }): Promise<ProviderRecord> {
   if (!isDbConfigured()) throw new Error("Database not configured — set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
   const rows = await sb<DbProvider[]>(`/providers`, {
@@ -149,6 +155,7 @@ export async function createProvider(p: {
       models: p.models,
       priority: p.priority,
       enabled: p.enabled,
+      disabled_keys: p.disabledKeys ?? [],
     }),
   });
   return toRecord(rows[0]);
@@ -156,7 +163,7 @@ export async function createProvider(p: {
 
 export async function updateProvider(
   id: string,
-  patch: Partial<{ name: string; baseUrl: string; apiKeys: string[]; models: string[]; priority: number; enabled: boolean }>
+  patch: Partial<{ name: string; baseUrl: string; apiKeys: string[]; models: string[]; priority: number; enabled: boolean; disabledKeys: string[] }>
 ): Promise<void> {
   if (!isDbConfigured()) throw new Error("Database not configured.");
   const body: Record<string, unknown> = {};
@@ -166,6 +173,7 @@ export async function updateProvider(
   if (patch.models !== undefined) body.models = patch.models;
   if (patch.priority !== undefined) body.priority = patch.priority;
   if (patch.enabled !== undefined) body.enabled = patch.enabled;
+  if (patch.disabledKeys !== undefined) body.disabled_keys = patch.disabledKeys;
   await sb(`/providers?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
 }
 

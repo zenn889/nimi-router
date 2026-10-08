@@ -27,6 +27,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   if (b.priority !== undefined) patch.priority = Number(b.priority);
   if (b.enabled !== undefined) patch.enabled = b.enabled !== false;
+  if (b.disabledKeys !== undefined && Array.isArray(b.disabledKeys)) {
+    patch.disabledKeys = [...new Set((b.disabledKeys as unknown[]).map(String).map((s) => s.trim()).filter(Boolean))];
+  }
 
   try {
     await updateProvider(decodeURIComponent(id), patch as never);

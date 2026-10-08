@@ -11,6 +11,8 @@ export interface ProviderConfig {
   /** Lower = tried first. */
   priority: number;
   enabled: boolean;
+  /** Masked keys excluded from routing. */
+  disabledKeys: string[];
 }
 
 function parseProviders(): ProviderConfig[] {
@@ -34,6 +36,7 @@ function parseProviders(): ProviderConfig[] {
           models: Array.isArray(p.models) && p.models.length > 0 ? (p.models as string[]) : ["*"],
           priority: typeof p.priority === "number" ? p.priority : i,
           enabled: p.enabled !== false,
+          disabledKeys: Array.isArray(p.disabledKeys) ? (p.disabledKeys as unknown[]).map(String).filter(Boolean) : [],
         };
       })
       .filter((p) => p.baseUrl && p.apiKeys.length > 0)

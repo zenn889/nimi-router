@@ -8,6 +8,13 @@ import { listProviders, persistLog, type ProviderRecord, type LogEntry } from ".
 import { orderedKeys, cooldownKey } from "./keypool";
 import { recordRequest, addTokens, type TokenUsage } from "./stats";
 
+/** Keys eligible for routing: enabled (not per-key disabled) ones. */
+export function activeKeys(p: ProviderRecord): string[] {
+  const disabled = new Set(p.disabledKeys ?? []);
+  if (disabled.size === 0) return p.apiKeys;
+  return p.apiKeys.filter((k) => !disabled.has(maskSecret(k)));
+}
+
 const RETRYABLE = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
 function isRetryable(status: number): boolean {
@@ -146,7 +153,7 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
 
   const all = await listProviders().catch(() => [] as ProviderRecord[]);
   const chain = all.filter(
-    (p) => p.enabled && p.apiKeys.length > 0 && (p.models.includes("*") || p.models.includes(model))
+    (p) => p.enabled && activeKeys(p).length > 0 && (p.models.includes("*") || p.models.includes(model))
   );
   if (chain.length === 0) {
     return errJson(
@@ -166,7 +173,7 @@ export async function proxyChatCompletion(body: Record<string, unknown>): Promis
   const failures: string[] = [];
 
   for (const p of chain) {
-    for (const key of orderedKeys(p.name, p.apiKeys)) {
+    for (const key of orderedKeys(p.name, activeKeys(p))) {
       const started = Date.now();
       const ctx: AttemptCtx = {
         time: new Date().toISOString(),

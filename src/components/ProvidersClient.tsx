@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import Card from "@/components/Card";
-import TestButton from "@/components/TestButton";
 
 interface Provider {
   id: string;
@@ -13,6 +13,7 @@ interface Provider {
   models: string[];
   priority: number;
   enabled: boolean;
+  disabledKeys: string[];
 }
 
 interface KeyStat {
@@ -39,17 +40,21 @@ function fmt(n: number): string {
 const NL = String.fromCharCode(10);
 const emptyForm = { name: "", baseUrl: "", apiKeys: "", models: "*", priority: "0", enabled: true };
 
+type StatusFilter = "all" | "active" | "issues";
+
 export default function ProvidersClient() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [keyStats, setKeyStats] = useState<KeyStat[]>([]);
   const [db, setDb] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [testingAll, setTestingAll] = useState(false);
+  const [testSummary, setTestSummary] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     try {
@@ -69,23 +74,58 @@ export default function ProvidersClient() {
     load();
   }, [load]);
 
+  function providerHealth(p: Provider): "ok" | "issues" | "idle" {
+    const stats = keyStats.filter((s) => s.provider === p.name);
+    if (stats.some((s) => s.cooling || (s.lastError && s.failed > 0))) return "issues";
+    if (stats.some((s) => s.requests > 0)) return "ok";
+    return "idle";
+  }
+
+  const visible = providers.filter((p) => {
+    if (filter === "all") return true;
+    if (filter === "active") return p.enabled;
+    return providerHealth(p) === "issues";
+  });
+
+  async function toggleEnabled(p: Provider) {
+    if (!db) return;
+    await fetch(`/api/providers/${encodeURIComponent(p.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: !p.enabled }),
+    });
+    load();
+  }
+
+  async function testAll() {
+    setTestingAll(true);
+    setTestSummary("");
+    try {
+      let ok = 0;
+      let total = 0;
+      for (let i = 0; i < providers.length; i++) {
+        const res = await fetch("/api/providers/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ index: i }),
+        });
+        const data = await res.json().catch(() => ({}));
+        const results = data.results ?? [];
+        total += results.length;
+        ok += results.filter((r: { ok: boolean }) => r.ok).length;
+      }
+      setTestSummary(`${ok}/${total} keys healthy across ${providers.length} provider(s)`);
+    } catch {
+      setTestSummary("Test failed — check your connection.");
+    } finally {
+      setTestingAll(false);
+      load();
+    }
+  }
+
   function openAdd() {
     setEditing(null);
     setForm(emptyForm);
-    setError("");
-    setShowForm(true);
-  }
-
-  function openEdit(p: Provider) {
-    setEditing(p);
-    setForm({
-      name: p.name,
-      baseUrl: p.baseUrl,
-      apiKeys: p.apiKeys.join(NL),
-      models: p.models.join(", "),
-      priority: String(p.priority),
-      enabled: p.enabled,
-    });
     setError("");
     setShowForm(true);
   }
@@ -118,21 +158,6 @@ export default function ProvidersClient() {
     }
   }
 
-  async function remove(p: Provider) {
-    if (!confirm(`Delete provider "${p.name}"?`)) return;
-    await fetch(`/api/providers/${encodeURIComponent(p.id)}`, { method: "DELETE" });
-    load();
-  }
-
-  async function toggle(p: Provider) {
-    await fetch(`/api/providers/${encodeURIComponent(p.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: !p.enabled }),
-    });
-    load();
-  }
-
   async function importEnv() {
     if (!confirm("Import providers from PROVIDERS_JSON env into the database?")) return;
     const res = await fetch("/api/providers?action=import", { method: "PUT" });
@@ -145,9 +170,9 @@ export default function ProvidersClient() {
     return (
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-[var(--surface-2)]" />
-        <div className="grid gap-4">
-          {[1, 2].map((i) => (
-            <div key={i} className="card h-48 animate-pulse" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card h-44 animate-pulse" />
           ))}
         </div>
       </div>
@@ -167,11 +192,29 @@ export default function ProvidersClient() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as StatusFilter)}
+            className="input !w-auto !py-2 text-xs"
+            aria-label="Filter providers"
+          >
+            <option value="all">All providers</option>
+            <option value="active">Active only</option>
+            <option value="issues">Has issues</option>
+          </select>
+          {providers.length > 0 && (
+            <button onClick={testAll} disabled={testingAll} className="btn-ghost text-sm">
+              <span className={`material-symbols-outlined text-[18px] ${testingAll ? "animate-spin" : ""}`}>
+                {testingAll ? "progress_activity" : "play_arrow"}
+              </span>
+              {testingAll ? "Testing…" : "Test All"}
+            </button>
+          )}
           {db && (
             <button onClick={importEnv} className="btn-ghost text-sm">
               <span className="material-symbols-outlined text-[18px]">upload</span>
-              Import from ENV
+              Import ENV
             </button>
           )}
           {db && (
@@ -183,14 +226,25 @@ export default function ProvidersClient() {
         </div>
       </div>
 
-      {providers.length === 0 && (
+      {testSummary && (
+        <div className="anim-fade-in mb-4 flex items-center gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--surface)] px-4 py-2.5 text-sm">
+          <span className="material-symbols-outlined text-[18px] text-[var(--brand)]">network_check</span>
+          {testSummary}
+        </div>
+      )}
+
+      {visible.length === 0 && (
         <div className="card anim-fade-up border-dashed py-12 text-center">
-          <span className="material-symbols-outlined mb-2 block text-[40px] text-[var(--text-subtle)]">dns</span>
-          <div className="font-medium">No providers yet</div>
+          <span className="material-symbols-outlined mb-2 block text-[40px] text-[var(--text-subtle)]">
+            {providers.length === 0 ? "dns" : "search_off"}
+          </span>
+          <div className="font-medium">{providers.length === 0 ? "No providers yet" : "No providers match the filter"}</div>
           <div className="mt-1 text-sm text-[var(--text-muted)]">
-            {db ? "Add your first provider to start routing requests." : "Configure PROVIDERS_JSON or connect Supabase."}
+            {providers.length === 0
+              ? db ? "Add your first provider to start routing requests." : "Configure PROVIDERS_JSON or connect Supabase."
+              : "Try a different filter."}
           </div>
-          {db && (
+          {db && providers.length === 0 && (
             <button onClick={openAdd} className="btn mt-4 text-sm">
               <span className="material-symbols-outlined text-[18px]">add</span>
               Add provider
@@ -199,98 +253,64 @@ export default function ProvidersClient() {
         </div>
       )}
 
-      <div className="stagger grid gap-4">
-        {providers.map((p, i) => {
+      {/* 9Router-style provider card grid */}
+      <div className="stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {visible.map((p) => {
           const pStats = keyStats.filter((s) => s.provider === p.name);
+          const activeKeys = p.apiKeys.length - (p.disabledKeys?.length ?? 0);
           const totalReq = pStats.reduce((a, s) => a + s.requests, 0);
+          const health = providerHealth(p);
           return (
-            <Card
-              key={p.id}
-              className="card-hover"
-              title={p.name}
-              subtitle={p.baseUrl}
-              icon="dns"
-              action={
-                <div className="flex items-center gap-2">
-                  <span className={`flex items-center gap-1.5 ${p.enabled ? "" : "opacity-60"}`}>
-                    <span className={p.enabled ? "dot-live" : "dot-idle"} />
+            <Link key={p.id} href={`/providers/${encodeURIComponent(p.id)}`} className="card card-hover group flex flex-col">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--bg-alt)]">
+                    <span className="material-symbols-outlined text-[22px] text-[var(--brand)]">dns</span>
                   </span>
-                  <span className="pill font-mono">#{p.priority}</span>
-                  {!p.enabled && <span className="pill">disabled</span>}
+                  <div className="min-w-0">
+                    <div className="truncate text-[15px] font-semibold tracking-tight">{p.name}</div>
+                    <div className="truncate font-mono text-[11px] text-[var(--text-subtle)]">{p.baseUrl}</div>
+                  </div>
                 </div>
-              }
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <TestButton index={i} />
-                {db && (
-                  <>
-                    <button onClick={() => toggle(p)} className="btn-ghost !px-3 !py-1.5 !text-xs">
-                      {p.enabled ? "Disable" : "Enable"}
-                    </button>
-                    <button onClick={() => openEdit(p)} className="btn-ghost !px-3 !py-1.5 !text-xs">
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
-                      Edit
-                    </button>
-                    <button onClick={() => remove(p)} className="btn-danger !px-3 !py-1.5 !text-xs">
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
-                      Delete
-                    </button>
-                  </>
+                {db ? (
+                  <span
+                    role="switch"
+                    aria-checked={p.enabled}
+                    tabIndex={0}
+                    onClick={(e) => { e.preventDefault(); toggleEnabled(p); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); toggleEnabled(p); } }}
+                    className="toggle"
+                    data-on={p.enabled}
+                    title={p.enabled ? "Disable provider" : "Enable provider"}
+                  />
+                ) : (
+                  <span className={p.enabled ? "dot-live mt-1" : "dot-idle mt-1"} />
                 )}
               </div>
 
-              <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
-                <div className="label">
-                  API keys ({p.apiKeys.length}){" "}
-                  {totalReq > 0 && <span className="normal-case text-[var(--text-subtle)]">· {totalReq} requests total</span>}
-                </div>
-                <div className="space-y-2">
-                  {p.apiKeysMasked.map((masked, ki) => {
-                    const ks = keyStats.find((s) => s.keyMasked === masked);
-                    const revealed = showKeys[p.id];
-                    return (
-                      <div
-                        key={ki}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-alt)] px-3.5 py-2.5"
-                      >
-                        <div className="flex items-center gap-2.5 font-mono text-xs">
-                          <span className={ks?.cooling ? "dot-cool" : ks ? "dot-live" : "dot-idle"} />
-                          <span>{revealed ? p.apiKeys[ki] : masked}</span>
-                          {ks?.cooling && <span className="pill pill-amber">cooldown {Math.ceil((ks.cooldownMs ?? 0) / 1000)}s</span>}
-                          <button
-                            onClick={() => setShowKeys((s) => ({ ...s, [p.id]: !revealed }))}
-                            className="font-sans text-[11px] text-[var(--text-subtle)] underline-offset-2 hover:text-[var(--text-muted)] hover:underline"
-                          >
-                            {revealed ? "hide" : "reveal"}
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-4 font-mono text-[11px] text-[var(--text-muted)]">
-                          {ks ? (
-                            <>
-                              <span><span className="text-[var(--text)]">{ks.requests}</span> req</span>
-                              <span><span className="text-[#22c55e]">{fmt(ks.promptTokens)}</span> in</span>
-                              <span><span className="text-[#f59e0b]">{fmt(ks.completionTokens)}</span> out</span>
-                              <span>{ks.avgLatencyMs}ms</span>
-                              {ks.lastError && <span className="max-w-[200px] truncate text-[#ef4444]/80" title={ks.lastError}>{ks.lastError}</span>}
-                            </>
-                          ) : (
-                            <span className="text-[var(--text-subtle)]">no traffic yet</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <span className="pill font-mono">#{p.priority}</span>
+                <span className="pill">
+                  <span className="material-symbols-outlined text-[14px]">key</span>
+                  {activeKeys}/{p.apiKeys.length} keys
+                </span>
+                <span className="pill">
+                  <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+                  {p.models.includes("*") ? "any model" : `${p.models.length} models`}
+                </span>
+                {health === "issues" && <span className="pill pill-amber">issues</span>}
+                {!p.enabled && <span className="pill">disabled</span>}
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {p.models.map((m) => (
-                  <span key={m} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)] px-2.5 py-1 font-mono text-[11px] text-[var(--text-muted)]">
-                    {m}
-                  </span>
-                ))}
+              <div className="mt-auto flex items-center justify-between border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
+                <span className="font-mono">{fmt(totalReq)} requests</span>
+                <span className="font-mono">{fmt(pStats.reduce((a, s) => a + s.totalTokens, 0))} tokens</span>
+                <span className="flex items-center gap-1 font-medium text-[var(--brand)] opacity-0 transition-opacity group-hover:opacity-100">
+                  Manage
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </span>
               </div>
-            </Card>
+            </Link>
           );
         })}
       </div>
@@ -361,7 +381,7 @@ export default function ProvidersClient() {
           {[
             ["1", "Request arrives", "POST /api/v1/chat/completions with a model name."],
             ["2", "Match provider", "Enabled providers serving the model, by priority."],
-            ["3", "Rotate keys", "Round-robin across the provider's API keys."],
+            ["3", "Rotate keys", "Round-robin across the provider's enabled API keys."],
             ["4", "Auto failover", "Failing keys cool down; traffic shifts automatically."],
             ["5", "Track tokens", "Usage logged per key, streaming included."],
           ].map(([n, t, d]) => (

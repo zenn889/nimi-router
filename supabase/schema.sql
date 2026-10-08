@@ -10,8 +10,12 @@ create table if not exists providers (
   models text[] not null default '{*}',
   priority int not null default 0,
   enabled boolean not null default true,
+  disabled_keys text[] not null default '{}',
   created_at timestamptz not null default now()
 );
+
+-- Migration for installs created before disabled_keys existed:
+alter table providers add column if not exists disabled_keys text[] not null default '{}';
 
 create table if not exists api_keys (
   id uuid primary key default gen_random_uuid(),
