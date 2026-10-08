@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Card from "@/components/Card";
 import TestButton from "@/components/TestButton";
 
 interface Provider {
@@ -35,6 +36,7 @@ function fmt(n: number): string {
   return String(n);
 }
 
+const NL = String.fromCharCode(10);
 const emptyForm = { name: "", baseUrl: "", apiKeys: "", models: "*", priority: "0", enabled: true };
 
 export default function ProvidersClient() {
@@ -79,7 +81,7 @@ export default function ProvidersClient() {
     setForm({
       name: p.name,
       baseUrl: p.baseUrl,
-      apiKeys: p.apiKeys.join(String.fromCharCode(10)),
+      apiKeys: p.apiKeys.join(NL),
       models: p.models.join(", "),
       priority: String(p.priority),
       enabled: p.enabled,
@@ -94,7 +96,7 @@ export default function ProvidersClient() {
     const payload = {
       name: form.name.trim(),
       baseUrl: form.baseUrl.trim(),
-      apiKeys: form.apiKeys.split(String.fromCharCode(10)).map((s) => s.trim()).filter(Boolean),
+      apiKeys: form.apiKeys.split(NL).map((s) => s.trim()).filter(Boolean),
       models: form.models,
       priority: Number(form.priority || 0),
       enabled: form.enabled,
@@ -142,7 +144,7 @@ export default function ProvidersClient() {
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-white/[0.05]" />
+        <div className="mb-6 h-8 w-48 animate-pulse rounded-xl bg-[var(--surface-2)]" />
         <div className="grid gap-4">
           {[1, 2].map((i) => (
             <div key={i} className="card h-48 animate-pulse" />
@@ -154,10 +156,10 @@ export default function ProvidersClient() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="anim-fade-up mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="anim-fade-up mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="section-title">Providers</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="section-sub !mb-0">
             {db ? (
               <>Stored in <span className="pill pill-green ml-1">Supabase</span> — changes apply instantly.</>
             ) : (
@@ -168,12 +170,14 @@ export default function ProvidersClient() {
         <div className="flex gap-2">
           {db && (
             <button onClick={importEnv} className="btn-ghost text-sm">
+              <span className="material-symbols-outlined text-[18px]">upload</span>
               Import from ENV
             </button>
           )}
           {db && (
             <button onClick={openAdd} className="btn text-sm">
-              <span className="text-lg leading-none">+</span> Add provider
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Add provider
             </button>
           )}
         </div>
@@ -181,14 +185,15 @@ export default function ProvidersClient() {
 
       {providers.length === 0 && (
         <div className="card anim-fade-up border-dashed py-12 text-center">
-          <div className="mb-3 text-4xl">🔌</div>
-          <div className="font-medium text-zinc-300">No providers yet</div>
-          <div className="mt-1 text-sm text-zinc-500">
+          <span className="material-symbols-outlined mb-2 block text-[40px] text-[var(--text-subtle)]">dns</span>
+          <div className="font-medium">No providers yet</div>
+          <div className="mt-1 text-sm text-[var(--text-muted)]">
             {db ? "Add your first provider to start routing requests." : "Configure PROVIDERS_JSON or connect Supabase."}
           </div>
           {db && (
             <button onClick={openAdd} className="btn mt-4 text-sm">
-              + Add provider
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Add provider
             </button>
           )}
         </div>
@@ -199,69 +204,77 @@ export default function ProvidersClient() {
           const pStats = keyStats.filter((s) => s.provider === p.name);
           const totalReq = pStats.reduce((a, s) => a + s.requests, 0);
           return (
-            <div key={p.id} className="card card-hover">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className={`h-3 w-3 rounded-full ${p.enabled ? "dot-live bg-emerald-400" : "bg-zinc-600"}`} />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[17px] font-semibold tracking-tight">{p.name}</span>
-                      <span className="pill pill-zinc font-mono">#{p.priority}</span>
-                      {!p.enabled && <span className="pill pill-zinc">disabled</span>}
-                    </div>
-                    <div className="mt-0.5 font-mono text-[11px] text-zinc-600">{p.baseUrl}</div>
-                  </div>
-                </div>
+            <Card
+              key={p.id}
+              className="card-hover"
+              title={p.name}
+              subtitle={p.baseUrl}
+              icon="dns"
+              action={
                 <div className="flex items-center gap-2">
-                  <TestButton index={i} />
-                  {db && (
-                    <>
-                      <button onClick={() => toggle(p)} className="btn-ghost px-3 py-1.5 text-xs">
-                        {p.enabled ? "Disable" : "Enable"}
-                      </button>
-                      <button onClick={() => openEdit(p)} className="btn-ghost px-3 py-1.5 text-xs">
-                        Edit
-                      </button>
-                      <button onClick={() => remove(p)} className="btn-danger px-3 py-1.5 text-xs">
-                        Delete
-                      </button>
-                    </>
-                  )}
+                  <span className={`flex items-center gap-1.5 ${p.enabled ? "" : "opacity-60"}`}>
+                    <span className={p.enabled ? "dot-live" : "dot-idle"} />
+                  </span>
+                  <span className="pill font-mono">#{p.priority}</span>
+                  {!p.enabled && <span className="pill">disabled</span>}
                 </div>
+              }
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <TestButton index={i} />
+                {db && (
+                  <>
+                    <button onClick={() => toggle(p)} className="btn-ghost !px-3 !py-1.5 !text-xs">
+                      {p.enabled ? "Disable" : "Enable"}
+                    </button>
+                    <button onClick={() => openEdit(p)} className="btn-ghost !px-3 !py-1.5 !text-xs">
+                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      Edit
+                    </button>
+                    <button onClick={() => remove(p)} className="btn-danger !px-3 !py-1.5 !text-xs">
+                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
 
-              <div className="mt-4 border-t border-white/[0.06] pt-4">
+              <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
                 <div className="label">
-                  API keys ({p.apiKeys.length}) {totalReq > 0 && <span className="ml-1 normal-case text-zinc-600">· {totalReq} requests total</span>}
+                  API keys ({p.apiKeys.length}){" "}
+                  {totalReq > 0 && <span className="normal-case text-[var(--text-subtle)]">· {totalReq} requests total</span>}
                 </div>
                 <div className="space-y-2">
                   {p.apiKeysMasked.map((masked, ki) => {
                     const ks = keyStats.find((s) => s.keyMasked === masked);
                     const revealed = showKeys[p.id];
                     return (
-                      <div key={ki} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/30 px-3.5 py-2.5">
+                      <div
+                        key={ki}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-alt)] px-3.5 py-2.5"
+                      >
                         <div className="flex items-center gap-2.5 font-mono text-xs">
-                          <span className={`h-1.5 w-1.5 rounded-full ${ks?.cooling ? "bg-amber-400" : ks ? "bg-emerald-400" : "bg-zinc-600"}`} />
-                          <span className="text-zinc-300">{revealed ? p.apiKeys[ki] : masked}</span>
+                          <span className={ks?.cooling ? "dot-cool" : ks ? "dot-live" : "dot-idle"} />
+                          <span>{revealed ? p.apiKeys[ki] : masked}</span>
                           {ks?.cooling && <span className="pill pill-amber">cooldown {Math.ceil((ks.cooldownMs ?? 0) / 1000)}s</span>}
                           <button
                             onClick={() => setShowKeys((s) => ({ ...s, [p.id]: !revealed }))}
-                            className="text-[11px] text-zinc-600 underline-offset-2 hover:text-zinc-400 hover:underline"
+                            className="font-sans text-[11px] text-[var(--text-subtle)] underline-offset-2 hover:text-[var(--text-muted)] hover:underline"
                           >
                             {revealed ? "hide" : "reveal"}
                           </button>
                         </div>
-                        <div className="flex items-center gap-4 font-mono text-[11px] text-zinc-500">
+                        <div className="flex items-center gap-4 font-mono text-[11px] text-[var(--text-muted)]">
                           {ks ? (
                             <>
-                              <span><span className="text-zinc-300">{ks.requests}</span> req</span>
-                              <span><span className="text-emerald-300/90">{fmt(ks.promptTokens)}</span> in</span>
-                              <span><span className="text-amber-300/90">{fmt(ks.completionTokens)}</span> out</span>
-                              <span className="text-zinc-600">{ks.avgLatencyMs}ms</span>
-                              {ks.lastError && <span className="max-w-[200px] truncate text-red-400/80" title={ks.lastError}>{ks.lastError}</span>}
+                              <span><span className="text-[var(--text)]">{ks.requests}</span> req</span>
+                              <span><span className="text-[#22c55e]">{fmt(ks.promptTokens)}</span> in</span>
+                              <span><span className="text-[#f59e0b]">{fmt(ks.completionTokens)}</span> out</span>
+                              <span>{ks.avgLatencyMs}ms</span>
+                              {ks.lastError && <span className="max-w-[200px] truncate text-[#ef4444]/80" title={ks.lastError}>{ks.lastError}</span>}
                             </>
                           ) : (
-                            <span className="text-zinc-700">no traffic yet</span>
+                            <span className="text-[var(--text-subtle)]">no traffic yet</span>
                           )}
                         </div>
                       </div>
@@ -272,24 +285,24 @@ export default function ProvidersClient() {
 
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {p.models.map((m) => (
-                  <span key={m} className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] text-zinc-400">
+                  <span key={m} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)] px-2.5 py-1 font-mono text-[11px] text-[var(--text-muted)]">
                     {m}
                   </span>
                 ))}
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
 
       {showForm && (
-        <div className="anim-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>
-          <div className="card anim-modal max-h-[90vh] w-full max-w-lg overflow-y-auto !bg-[#101013]" onClick={(e) => e.stopPropagation()}>
+        <div className="anim-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setShowForm(false)}>
+          <div className="card anim-modal max-h-[90vh] w-full max-w-lg overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="mb-1 text-lg font-bold tracking-tight">{editing ? "Edit provider" : "Add provider"}</h2>
-            <p className="mb-4 text-xs text-zinc-500">
+            <p className="mb-4 text-xs text-[var(--text-muted)]">
               {editing ? "Update the provider configuration." : "Connect a new OpenAI-compatible provider."}
             </p>
-            {error && <div className="mb-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
+            {error && <div className="mb-3 rounded-[10px] border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.07)] p-3 text-sm text-[#ef4444]">{error}</div>}
             <div className="space-y-4">
               <div>
                 <div className="label">Name</div>
@@ -300,10 +313,18 @@ export default function ProvidersClient() {
                 <input className="input font-mono" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://api.openai.com/v1" spellCheck={false} />
               </div>
               <div>
-                <div className="label">API keys <span className="normal-case text-zinc-600">— one per line, rotates round-robin</span></div>
-                <textarea className="input font-mono" rows={3} value={form.apiKeys} onChange={(e) => setForm({ ...form, apiKeys: e.target.value })} placeholder={"sk-aaa" + String.fromCharCode(10) + "sk-bbb"} spellCheck={false} /> </div>
+                <div className="label">API keys <span className="normal-case text-[var(--text-subtle)]">— one per line, rotates round-robin</span></div>
+                <textarea
+                  className="input font-mono"
+                  rows={3}
+                  value={form.apiKeys}
+                  onChange={(e) => setForm({ ...form, apiKeys: e.target.value })}
+                  placeholder={"sk-aaa" + NL + "sk-bbb"}
+                  spellCheck={false}
+                />
+              </div>
               <div>
-                <div className="label">Models <span className="normal-case text-zinc-600">— comma separated, * = any</span></div>
+                <div className="label">Models <span className="normal-case text-[var(--text-subtle)]">— comma separated, * = any</span></div>
                 <input className="input font-mono" value={form.models} onChange={(e) => setForm({ ...form, models: e.target.value })} placeholder="gpt-4o-mini, gpt-4o" spellCheck={false} />
               </div>
               <div className="flex items-end gap-4">
@@ -311,14 +332,16 @@ export default function ProvidersClient() {
                   <div className="label">Priority</div>
                   <input type="number" className="input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} />
                 </div>
-                <label className="flex cursor-pointer items-center gap-2.5 pb-2.5 text-sm text-zinc-300">
-                  <button
-                    type="button"
+                <label className="flex cursor-pointer items-center gap-2.5 pb-2.5 text-sm">
+                  <span
+                    role="switch"
+                    aria-checked={form.enabled}
+                    tabIndex={0}
                     onClick={() => setForm({ ...form, enabled: !form.enabled })}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${form.enabled ? "bg-emerald-500" : "bg-zinc-700"}`}
-                  >
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${form.enabled ? "left-[22px]" : "left-0.5"}`} />
-                  </button>
+                    onKeyDown={(e) => e.key === "Enter" && setForm({ ...form, enabled: !form.enabled })}
+                    className="toggle"
+                    data-on={form.enabled}
+                  />
                   Enabled
                 </label>
               </div>
@@ -333,8 +356,7 @@ export default function ProvidersClient() {
         </div>
       )}
 
-      <div className="card anim-fade-up mt-6 text-sm text-zinc-400">
-        <div className="mb-3 font-semibold text-zinc-200">How routing works</div>
+      <Card title="How routing works" icon="route" className="anim-fade-up mt-6">
         <div className="grid gap-3 md:grid-cols-5">
           {[
             ["1", "Request arrives", "POST /api/v1/chat/completions with a model name."],
@@ -343,14 +365,14 @@ export default function ProvidersClient() {
             ["4", "Auto failover", "Failing keys cool down; traffic shifts automatically."],
             ["5", "Track tokens", "Usage logged per key, streaming included."],
           ].map(([n, t, d]) => (
-            <div key={n} className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
-              <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 font-mono text-[11px] font-bold text-emerald-300">{n}</div>
-              <div className="text-xs font-semibold text-zinc-200">{t}</div>
-              <div className="mt-0.5 text-[11px] leading-relaxed text-zinc-500">{d}</div>
+            <div key={n} className="rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-alt)] p-3">
+              <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--brand-soft)] font-mono text-[11px] font-bold text-[var(--brand)]">{n}</div>
+              <div className="text-xs font-semibold">{t}</div>
+              <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">{d}</div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

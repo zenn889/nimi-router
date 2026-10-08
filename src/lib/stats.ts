@@ -95,6 +95,61 @@ export function addTokens(provider: string, rawKey: string, u: TokenUsage) {
   c.totalTokens += u.total_tokens || 0;
 }
 
+export interface DailyBucket {
+  date: string; // YYYY-MM-DD
+  requests: number;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export interface TopModel {
+  model: string;
+  requests: number;
+  totalTokens: number;
+}
+
+/** Last N days (ascending) of request/token buckets from timestamped logs. */
+export function dailyBuckets(
+  logs: { time: string; promptTokens: number; completionTokens: number }[],
+  days = 14
+): DailyBucket[] {
+  const buckets = new Map<string, DailyBucket>();
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { date: key, requests: 0, promptTokens: 0, completionTokens: 0 });
+  }
+  for (const l of logs) {
+    const t = new Date(l.time);
+    if (Number.isNaN(t.getTime())) continue;
+    const b = buckets.get(t.toISOString().slice(0, 10));
+    if (b) {
+      b.requests += 1;
+      b.promptTokens += l.promptTokens || 0;
+      b.completionTokens += l.completionTokens || 0;
+    }
+  }
+  return [...buckets.values()];
+}
+
+/** Most-used models by request count. */
+export function topModels(
+  logs: { model: string; totalTokens: number }[],
+  limit = 8
+): TopModel[] {
+  const m = new Map<string, TopModel>();
+  for (const l of logs) {
+    const name = l.model || "unknown";
+    const e = m.get(name) ?? { model: name, requests: 0, totalTokens: 0 };
+    e.requests += 1;
+    e.totalTokens += l.totalTokens || 0;
+    m.set(name, e);
+  }
+  return [...m.values()].sort((a, b) => b.requests - a.requests).slice(0, limit);
+}
+
 export interface StatsSnapshot {
   totalRequests: number;
   successRate: number;

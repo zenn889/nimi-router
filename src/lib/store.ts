@@ -3,6 +3,7 @@
 // All Supabase access uses the service_role key server-side only.
 
 import { randomBytes } from "crypto";
+import { dailyBuckets, topModels, type DailyBucket, type TopModel } from "./stats";
 
 export interface ProviderRecord {
   id: string;
@@ -298,6 +299,8 @@ export interface DbStats {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  daily: DailyBucket[];
+  topModels: TopModel[];
   keys: {
     provider: string;
     keyMasked: string;
@@ -323,7 +326,7 @@ export async function dbStats(): Promise<DbStats | null> {
   if (!isDbConfigured()) return null;
   const [aggRows, recentRows] = await Promise.all([
     sb<DbLog[]>(
-      `/request_logs?select=provider,key_masked,success,latency_ms,prompt_tokens,completion_tokens,total_tokens,error&order=time.desc&limit=5000`
+      `/request_logs?select=provider,key_masked,success,latency_ms,prompt_tokens,completion_tokens,total_tokens,error,time,model&order=time.desc&limit=5000`
     ).catch(() => [] as DbLog[]),
     sb<DbLog[]>(
       `/request_logs?select=*&order=time.desc&limit=100`
@@ -373,6 +376,13 @@ export async function dbStats(): Promise<DbStats | null> {
   });
 
   const total = aggRows.length;
+  const normLogs = aggRows.map((r) => ({
+    time: r.time,
+    model: r.model,
+    promptTokens: r.prompt_tokens,
+    completionTokens: r.completion_tokens,
+    totalTokens: r.total_tokens,
+  }));
   return {
     totalRequests: total,
     successRate: total ? Math.round((ok / total) * 100) : 100,
@@ -380,6 +390,8 @@ export async function dbStats(): Promise<DbStats | null> {
     promptTokens: pt,
     completionTokens: ct,
     totalTokens: tt,
+    daily: dailyBuckets(normLogs),
+    topModels: topModels(normLogs),
     keys,
     recent: recentRows.map((r) => ({
       time: r.time, model: r.model, provider: r.provider, keyMasked: r.key_masked,

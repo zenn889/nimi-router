@@ -15,6 +15,19 @@ export interface KeyStatView {
   lastError?: string;
 }
 
+export interface DailyBucketView {
+  date: string;
+  requests: number;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export interface TopModelView {
+  model: string;
+  requests: number;
+  totalTokens: number;
+}
+
 export interface StatsView {
   totalRequests: number;
   successRate: number;
@@ -22,6 +35,8 @@ export interface StatsView {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  daily: DailyBucketView[];
+  topModels: TopModelView[];
   keys: KeyStatView[];
   providers: { name: string; requests: number; success: number; failed: number; totalTokens: number }[];
   recent: {

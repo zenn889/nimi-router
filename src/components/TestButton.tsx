@@ -34,18 +34,19 @@ export default function TestButton({ index }: { index: number }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button onClick={test} disabled={state === "loading"} className="btn-ghost px-3 py-1 text-xs">
+      <button onClick={test} disabled={state === "loading"} className="btn-ghost !px-3 !py-1.5 !text-xs">
+        <span className="material-symbols-outlined text-[16px]">network_check</span>
         {state === "loading" ? "Testing…" : "Test keys"}
       </button>
       {state === "done" &&
         results.map((r) => (
           <span key={r.key} className="font-mono text-xs">
             {r.ok ? (
-              <span className="text-emerald-400">
+              <span className="text-[#22c55e]">
                 ✓ {r.key} · {r.latencyMs}ms{r.models != null ? ` · ${r.models} models` : ""}
               </span>
             ) : (
-              <span className="text-red-400">
+              <span className="text-[#ef4444]">
                 ✗ {r.key} · {r.error}
               </span>
             )}

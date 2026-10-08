@@ -7,6 +7,8 @@ interface Msg {
   content: string;
 }
 
+const NL = String.fromCharCode(10);
+
 export default function PlaygroundClient({ defaultModel }: { defaultModel: string }) {
   const [model, setModel] = useState(defaultModel);
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -55,7 +57,7 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const lines = buf.split(String.fromCharCode(10));
+        const lines = buf.split(NL);
         buf = lines.pop() ?? "";
         for (const line of lines) {
           const t = line.trim();
@@ -97,17 +99,17 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-3rem)] max-w-4xl flex-col">
+    <div className="mx-auto flex h-[calc(100vh-10rem)] max-w-4xl flex-col">
       <div className="anim-fade-up mb-5">
         <h1 className="section-title">Playground</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="section-sub !mb-0">
           Test the router end-to-end — requests go through the same fallback engine as the API.
         </p>
       </div>
 
       <div className="anim-fade-up mb-4 flex gap-2" style={{ animationDelay: "0.05s" }}>
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs text-zinc-600">model</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs text-[var(--text-subtle)]">model</span>
           <input
             className="input pl-[70px] font-mono"
             value={model}
@@ -117,30 +119,31 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
           />
         </div>
         <button onClick={() => setMessages([])} className="btn-ghost shrink-0 text-sm">
+          <span className="material-symbols-outlined text-[18px]">delete_sweep</span>
           Clear
         </button>
       </div>
 
-      <div className="card anim-fade-up mb-4 flex-1 overflow-y-auto !p-6" style={{ animationDelay: "0.1s" }}>
+      <div className="card anim-fade-up mb-4 flex-1 overflow-y-auto" style={{ animationDelay: "0.1s" }}>
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center py-12 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 text-2xl">
-              ✨
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--brand-soft)]">
+              <span className="material-symbols-outlined text-[28px] text-[var(--brand)]">chat</span>
             </div>
-            <div className="font-medium text-zinc-300">Start a conversation</div>
-            <div className="mt-1 max-w-xs text-sm text-zinc-500">
+            <div className="font-medium">Start a conversation</div>
+            <div className="mt-1 max-w-xs text-sm text-[var(--text-muted)]">
               Ask anything to test your provider chain, fallback, and token tracking.
             </div>
           </div>
         )}
         <div className="space-y-5">
           {messages.map((m, i) => (
-            <div key={i} className={`flex gap-3 anim-fade-up ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+            <div key={i} className={`anim-fade-up flex gap-3 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
               <div
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
                   m.role === "user"
-                    ? "bg-gradient-to-br from-emerald-300 to-emerald-600 text-black"
-                    : "border border-white/10 bg-white/[0.05] text-emerald-300"
+                    ? "bg-[var(--brand)] text-white"
+                    : "border border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--brand)]"
                 }`}
               >
                 {m.role === "user" ? "You" : "n"}
@@ -148,15 +151,15 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
               <div
                 className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   m.role === "user"
-                    ? "rounded-tr-md bg-gradient-to-br from-emerald-400 to-emerald-600 text-black shadow-[0_4px_20px_rgba(52,211,153,0.2)]"
-                    : "rounded-tl-md border border-white/[0.07] bg-white/[0.03] text-zinc-100"
+                    ? "rounded-tr-md bg-[var(--brand)] text-white"
+                    : "rounded-tl-md border border-[var(--border-subtle)] bg-[var(--surface-2)]"
                 }`}
               >
                 {m.content || (
                   <span className="flex gap-1.5 py-1">
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-zinc-400" />
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-zinc-400" />
-                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-[var(--text-subtle)]" />
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-[var(--text-subtle)]" />
+                    <span className="typing-dot h-1.5 w-1.5 rounded-full bg-[var(--text-subtle)]" />
                   </span>
                 )}
               </div>
@@ -164,7 +167,7 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
           ))}
         </div>
         {error && (
-          <div className="anim-fade-in mt-4 rounded-xl border border-red-500/25 bg-red-500/10 p-3.5 text-sm text-red-300">
+          <div className="anim-fade-in mt-4 rounded-[10px] border border-[rgba(239,68,68,0.3)] bg-[rgba(239,68,68,0.07)] p-3.5 text-sm text-[#ef4444]">
             {error}
           </div>
         )}
@@ -182,12 +185,12 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
         <button onClick={send} disabled={loading || !input.trim()} className="btn shrink-0 !rounded-2xl !px-6">
           {loading ? (
             <span className="flex gap-1.5">
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-black" />
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-black" />
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-black" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-white" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-white" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-white" />
             </span>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+            <span className="material-symbols-outlined text-[20px]">send</span>
           )}
         </button>
       </div>

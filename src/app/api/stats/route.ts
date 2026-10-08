@@ -1,5 +1,5 @@
 import { dashboardForbidden, hasDashboardSession } from "@/lib/auth";
-import { getStats } from "@/lib/stats";
+import { dailyBuckets, getStats, topModels } from "@/lib/stats";
 import { dbStats, isDbConfigured } from "@/lib/store";
 import { coolingSnapshot } from "@/lib/keypool";
 import { maskSecret } from "@/lib/config";
@@ -34,6 +34,8 @@ export async function GET() {
   const s = getStats();
   return Response.json({
     ...s,
+    daily: dailyBuckets(s.recent),
+    topModels: topModels(s.recent),
     keys: s.keys.map((k) => {
       const keyMasked = maskSecret(k.key);
       return {
