@@ -111,7 +111,29 @@ res = client.chat.completions.create(
 print(res.choices[0].message.content)`}</pre>
         </Card>
 
-        <Card title="4. Deploy to Vercel" icon="rocket_launch">
+        <Card title="4. Connect Hermes" icon="terminal">
+          <p className="mb-3 text-sm text-[var(--text-muted)]">
+            Yes — Hermes works with nimi-router. It supports a custom OpenAI-compatible provider.
+            Edit <code className="inline">~/.hermes/config.yaml</code>:
+          </p>
+          <pre className="code">{`model:
+  default: "gpt-4o-mini"   # any model your providers serve
+  provider: "custom"
+  base_url: "https://YOUR-APP.vercel.app/api/v1"
+  api_key: \${OPENAI_API_KEY}`}</pre>
+          <p className="mb-2 mt-4 text-sm text-[var(--text-muted)]">
+            Then put your nimi-router API key (create one on the Endpoint & Key page) in{" "}
+            <code className="inline">~/.hermes/.env</code>:
+          </p>
+          <pre className="code">{`OPENAI_API_KEY=nimi_your_key_here`}</pre>
+          <p className="mt-3 text-xs text-[var(--text-subtle)]">
+            Hermes will route through nimi-router with full fallback across your providers.
+            Any other OpenAI-compatible client (Claude Code, Cline, OpenCode, …) connects the same way:
+            base URL + Bearer key.
+          </p>
+        </Card>
+
+        <Card title="5. Deploy to Vercel" icon="rocket_launch">
           <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--text-muted)]">
             <li>Push this repo to GitHub.</li>
             <li>On <a href="https://vercel.com/new" target="_blank" rel="noreferrer" className="text-[var(--brand)] underline">vercel.com/new</a>, import the repo.</li>

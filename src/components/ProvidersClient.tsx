@@ -55,6 +55,8 @@ export default function ProvidersClient() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [detecting, setDetecting] = useState(false);
+  const [detectedCount, setDetectedCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -127,6 +129,7 @@ export default function ProvidersClient() {
     setEditing(null);
     setForm(emptyForm);
     setError("");
+    setDetectedCount(null);
     setShowForm(true);
   }
 
@@ -155,6 +158,37 @@ export default function ProvidersClient() {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function detectModels() {
+    const firstKey = form.apiKeys.split(NL).map((s) => s.trim()).filter(Boolean)[0];
+    if (!form.baseUrl.trim() || !firstKey) {
+      setError("Enter the Base URL and at least one API key first.");
+      return;
+    }
+    setDetecting(true);
+    setError("");
+    setDetectedCount(null);
+    try {
+      const res = await fetch("/api/providers/detect-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl: form.baseUrl.trim(), apiKey: firstKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Detection failed");
+      const models: string[] = data.models ?? [];
+      setDetectedCount(models.length);
+      if (models.length > 0) {
+        setForm((f) => ({ ...f, models: models.join(", ") }));
+      } else {
+        setError("No models reported by the endpoint — keeping '*'.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Detection failed");
+    } finally {
+      setDetecting(false);
     }
   }
 
@@ -344,7 +378,20 @@ export default function ProvidersClient() {
                 />
               </div>
               <div>
-                <div className="label">Models <span className="normal-case text-[var(--text-subtle)]">— comma separated, * = any</span></div>
+                <div className="label flex items-center justify-between">
+                  <span>Models <span className="normal-case text-[var(--text-subtle)]">— comma separated, * = any</span></span>
+                  <button
+                    type="button"
+                    onClick={detectModels}
+                    disabled={detecting}
+                    className="flex items-center gap-1 text-[11px] font-semibold normal-case tracking-normal text-[var(--brand)] hover:underline disabled:opacity-50"
+                  >
+                    <span className={`material-symbols-outlined text-[14px] ${detecting ? "animate-spin" : ""}`}>
+                      {detecting ? "progress_activity" : "radar"}
+                    </span>
+                    {detecting ? "Detecting…" : detectedCount !== null ? `Detected ${detectedCount} — detect again` : "Detect from API key"}
+                  </button>
+                </div>
                 <input className="input font-mono" value={form.models} onChange={(e) => setForm({ ...form, models: e.target.value })} placeholder="gpt-4o-mini, gpt-4o" spellCheck={false} />
               </div>
               <div className="flex items-end gap-4">
