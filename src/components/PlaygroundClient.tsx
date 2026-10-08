@@ -55,8 +55,7 @@ export default function PlaygroundClient({ defaultModel }: { defaultModel: strin
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("
-");
+        const lines = buf.split(String.fromCharCode(10));
         buf = lines.pop() ?? "";
         for (const line of lines) {
           const t = line.trim();

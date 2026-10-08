@@ -79,8 +79,7 @@ export default function ProvidersClient() {
     setForm({
       name: p.name,
       baseUrl: p.baseUrl,
-      apiKeys: p.apiKeys.join("
-"),
+      apiKeys: p.apiKeys.join(String.fromCharCode(10)),
       models: p.models.join(", "),
       priority: String(p.priority),
       enabled: p.enabled,
@@ -95,8 +94,7 @@ export default function ProvidersClient() {
     const payload = {
       name: form.name.trim(),
       baseUrl: form.baseUrl.trim(),
-      apiKeys: form.apiKeys.split("
-").map((s) => s.trim()).filter(Boolean),
+      apiKeys: form.apiKeys.split(String.fromCharCode(10)).map((s) => s.trim()).filter(Boolean),
       models: form.models,
       priority: Number(form.priority || 0),
       enabled: form.enabled,
@@ -303,9 +301,7 @@ export default function ProvidersClient() {
               </div>
               <div>
                 <div className="label">API keys <span className="normal-case text-zinc-600">— one per line, rotates round-robin</span></div>
-                <textarea className="input font-mono" rows={3} value={form.apiKeys} onChange={(e) => setForm({ ...form, apiKeys: e.target.value })} placeholder={"sk-aaa
-sk-bbb"} spellCheck={false} />
-              </div>
+                <textarea className="input font-mono" rows={3} value={form.apiKeys} onChange={(e) => setForm({ ...form, apiKeys: e.target.value })} placeholder={"sk-aaa" + String.fromCharCode(10) + "sk-bbb"} spellCheck={false} /> </div>
               <div>
                 <div className="label">Models <span className="normal-case text-zinc-600">— comma separated, * = any</span></div>
                 <input className="input font-mono" value={form.models} onChange={(e) => setForm({ ...form, models: e.target.value })} placeholder="gpt-4o-mini, gpt-4o" spellCheck={false} />
